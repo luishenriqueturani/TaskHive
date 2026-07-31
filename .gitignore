@@ -1,0 +1,16 @@
+# Repos Git independentes — versionados nos seus próprios remotes.
+FrontEnd/
+backend/
+
+# Secrets e ambiente local
+.env
+.env.*
+!.env.example
+
+# Lixo de SO / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
