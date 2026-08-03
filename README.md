@@ -34,9 +34,10 @@ Postgres + API Nest + Next.js + Nginx numa única entrada HTTP na LAN — **sem 
 http://IP:8080  →  Nginx
                  ├─ /              → Next (UI + /api/bff + auth)
                  ├─ /socket.io/    → Nest (timetrack)
-                 ├─ /swagger/      → Nest Swagger (Basic Auth do .env)
-                 └─ /projects…     → Nest REST (opcional; o BFF usa a rede Docker)
+                 └─ /swagger/      → Nest Swagger (Basic Auth do .env)
 ```
+
+As rotas de página do Next (`/projects`, `/to-do`, etc.) **não** devem ir para a API Nest — o browser usa o BFF (`/api/bff/...`), que fala com `http://api:3001` na rede Docker.
 
 Ficheiros: [`docker-compose.yml`](docker-compose.yml), [`docker/nginx.conf`](docker/nginx.conf), [`backend/Dockerfile`](backend/Dockerfile), [`FrontEnd/Dockerfile`](FrontEnd/Dockerfile).
 

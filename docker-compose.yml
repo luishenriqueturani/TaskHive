@@ -20,6 +20,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - taskhive
 
   api:
     build:
@@ -38,6 +40,10 @@ services:
         condition: service_healthy
     expose:
       - '3001'
+    networks:
+      taskhive:
+        aliases:
+          - api
 
   web:
     build:
@@ -49,7 +55,7 @@ services:
       NODE_ENV: production
       PORT: '3000'
       HOSTNAME: 0.0.0.0
-      # BFF fala com a API na rede Docker (não no browser).
+      # BFF → API na rede Docker (alias `api` + container_name).
       BACKEND_API_BASE_URL: http://api:3001
       # HTTP na LAN: cookie sem Secure; HSTS desligado até haver TLS.
       SESSION_COOKIE_SECURE: 'false'
@@ -60,6 +66,8 @@ services:
       - api
     expose:
       - '3000'
+    networks:
+      - taskhive
 
   nginx:
     image: nginx:alpine
@@ -72,6 +80,12 @@ services:
     depends_on:
       - api
       - web
+    networks:
+      - taskhive
+
+networks:
+  taskhive:
+    name: taskhive
 
 volumes:
   task_hive_pg:
