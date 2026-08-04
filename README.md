@@ -34,7 +34,7 @@ Postgres + API Nest + Next.js + Nginx numa única entrada HTTP na LAN — **sem 
 http://IP:8080  →  Nginx
                  ├─ /              → Next (UI + /api/bff + auth)
                  ├─ /socket.io/    → Nest (timetrack)
-                 └─ /swagger/      → Nest Swagger (Basic Auth do .env)
+                 └─ /swagger       → Nest Swagger (Basic Auth do .env)
 ```
 
 As rotas de página do Next (`/projects`, `/to-do`, etc.) **não** devem ir para a API Nest — o browser usa o BFF (`/api/bff/...`), que fala com `http://api:3001` na rede Docker.
@@ -81,7 +81,7 @@ docker compose exec -e SEED_ADMIN_PASSWORD='palavra-passe-forte' api npm run see
 No browser da LAN: **`http://IP_DO_SERVIDOR:8080`** (substitui pelo IP real).
 
 - App: `http://IP:8080`
-- Swagger: `http://IP:8080/swagger/` (credenciais `SWAGGER_*` do `.env`)
+- Swagger: `http://IP:8080/swagger` (credenciais `SWAGGER_*` do `.env`)
 
 Quando tiveres DNS/TLS, liga `SESSION_COOKIE_SECURE=true` e `ENABLE_HSTS=true` no serviço `web` e acrescenta HTTPS no Nginx.
 
