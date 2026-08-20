@@ -5,6 +5,9 @@ global:
 scrape_configs:
   - job_name: taskhive-api
     metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials: ${METRICS_TOKEN}
     static_configs:
       - targets:
           - api:3001

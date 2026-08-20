@@ -92,8 +92,11 @@ services:
     restart: unless-stopped
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--config.expand-env'
       - '--storage.tsdb.path=/prometheus'
       - '--web.enable-lifecycle'
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - task_hive_prometheus:/prometheus
