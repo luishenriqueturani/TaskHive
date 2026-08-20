@@ -35,6 +35,8 @@ http://IP:8080  →  Nginx
                  ├─ /              → Next (UI + /api/bff + auth)
                  ├─ /socket.io/    → Nest (timetrack)
                  └─ /swagger       → Nest Swagger (Basic Auth do .env)
+
+http://IP:3002  →  Grafana (métricas da API; Prometheus só na rede Docker)
 ```
 
 As rotas de página do Next (`/projects`, `/to-do`, etc.) **não** devem ir para a API Nest — o browser usa o BFF (`/api/bff/...`), que fala com `http://api:3001` na rede Docker.
@@ -48,10 +50,16 @@ Não corras em paralelo com `backend/docker-compose.yml` (mesmos contentores / v
 ```bash
 cd backend
 cp .env.example .env
-# Preenche: POSTGRES_PASSWORD, DB_PASSWORD, DB_REMOTE_PASSWORD,
-# JWT_SECRET, CRYPT_SALT, SWAGGER_USER, SWAGGER_PASSWORD
+# Preenche secrets e, se outra app já usa 5432/8080, altera as portas do *host*:
+#   POSTGRES_PUBLISH_PORT  (ex. 5468)
+#   HTTP_PORT              (ex. 8081)
+#   GRAFANA_PORT           (ex. 3003)
 # Alinha DB_NAME com POSTGRES_DB
+cd ..
+./scripts/link-compose-env.sh   # cria .env → backend/.env (obrigatório para as portas)
 ```
+
+O Docker Compose **só** interpola `${POSTGRES_PUBLISH_PORT}`, `${HTTP_PORT}` e `${GRAFANA_PORT}` a partir do ficheiro `.env` na **raiz**. O script acima liga esse ficheiro a `backend/.env`, para editares tudo num sítio só.
 
 ### 2. Subir a stack (na raiz do monorepo)
 
@@ -59,12 +67,19 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Portas no host (opcional no `.env` da raiz ou no ambiente):
+Portas no host (em `backend/.env`, após o link):
 
 | Variável | Default | Uso |
 |----------|---------|-----|
 | `HTTP_PORT` | `8080` | Entrada Nginx |
 | `POSTGRES_PUBLISH_PORT` | `5432` | Postgres na LAN (pgAdmin, etc.) |
+| `GRAFANA_PORT` | `3002` | UI Grafana |
+| `GRAFANA_ADMIN_USER` | `admin` | Login Grafana |
+| `GRAFANA_ADMIN_PASSWORD` | *(obrigatório)* | Password Grafana |
+
+Confirmar o que o Compose vai publicar: `docker compose config | grep published`.
+
+O Prometheus **não** publica porta no host; faz scrape de `http://api:3001/metrics` só na rede Docker. O endpoint `/metrics` **não** é exposto pelo Nginx.
 
 O serviço `web` já define `BACKEND_API_BASE_URL=http://api:3001`, `SESSION_COOKIE_SECURE=false` e `ENABLE_HSTS=false` (HTTP doméstico). O Socket.IO usa o mesmo host da página (derivado do `Host`); podes forçar com `PUBLIC_WS_URL` no serviço `web` se precisares.
 
@@ -82,6 +97,7 @@ No browser da LAN: **`http://IP_DO_SERVIDOR:8080`** (substitui pelo IP real).
 
 - App: `http://IP:8080`
 - Swagger: `http://IP:8080/swagger` (credenciais `SWAGGER_*` do `.env`)
+- Grafana: `http://IP:3002` (credenciais `GRAFANA_*`; dashboard **TaskHive API** com filtro por módulo)
 
 Quando tiveres DNS/TLS, liga `SESSION_COOKIE_SECURE=true` e `ENABLE_HSTS=true` no serviço `web` e acrescenta HTTPS no Nginx.
 

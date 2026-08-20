@@ -1,7 +1,10 @@
 # Task Hive — stack completa em casa (Postgres + API + Next + Nginx).
-# Acesso na LAN por IP: http://IP:8080 (sem DNS).
+# Acesso na LAN por IP: http://IP:${HTTP_PORT:-8080} (sem DNS).
 #
-# Pré-requisito: backend/.env (ver backend/.env.example).
+# Pré-requisito: backend/.env + atalho na raiz para o Compose interpolar portas:
+#   ./scripts/link-compose-env.sh
+#   (cria `.env` → `backend/.env`; sem isto POSTGRES_PUBLISH_PORT/HTTP_PORT/GRAFANA_PORT
+#    caem nos defaults e podem colidir com outro projeto na 5432/8080.)
 # Não corras em paralelo com backend/docker-compose.yml (mesmos nomes de contentor).
 
 services:
@@ -83,6 +86,56 @@ services:
     networks:
       - taskhive
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: task-hive-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - task_hive_prometheus:/prometheus
+    expose:
+      - '9090'
+    depends_on:
+      - api
+    networks:
+      - taskhive
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: task-hive-grafana
+    restart: unless-stopped
+    # Credenciais vêm do backend/.env (Compose na raiz NÃO interpola esse ficheiro
+    # para ${VAR}; o env_file injeta no contentor e o entrypoint mapeia para GF_*).
+    env_file: ./backend/.env
+    ports:
+      - '${GRAFANA_PORT:-3002}:3000'
+    environment:
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_PORT:-3002}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        export GF_SECURITY_ADMIN_USER="$${GRAFANA_ADMIN_USER:-admin}"
+        export GF_SECURITY_ADMIN_PASSWORD="$${GRAFANA_ADMIN_PASSWORD:-}"
+        if [ -z "$$GF_SECURITY_ADMIN_PASSWORD" ]; then
+          echo "Defina GRAFANA_ADMIN_PASSWORD no backend/.env" >&2
+          exit 1
+        fi
+        exec /run.sh
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - task_hive_grafana:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - taskhive
+
 networks:
   taskhive:
     name: taskhive
@@ -90,3 +143,7 @@ networks:
 volumes:
   task_hive_pg:
     name: task_hive_pg
+  task_hive_prometheus:
+    name: task_hive_prometheus
+  task_hive_grafana:
+    name: task_hive_grafana
