@@ -114,9 +114,8 @@ services:
     container_name: task-hive-prometheus
     restart: unless-stopped
     <<: [*node-security, *node-limits]
+    env_file: ./backend/.env
     entrypoint: [/docker/prometheus/entrypoint.sh]
-    environment:
-      METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - ./docker/prometheus/entrypoint.sh:/docker/prometheus/entrypoint.sh:ro
       - ./docker/prometheus/prometheus.yml.template:/etc/prometheus/prometheus.yml.template:ro

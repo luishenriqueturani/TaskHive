@@ -13,4 +13,4 @@ fi
 ln -sfn backend/.env .env
 echo "OK: .env → backend/.env"
 echo "Portas no host (edita em backend/.env):"
-grep -E '^(POSTGRES_PUBLISH_PORT|HTTP_PORT|GRAFANA_BIND|GRAFANA_PORT)=' backend/.env || true
+grep -E '^(POSTGRES_PUBLISH_PORT|HTTP_PORT|GRAFANA_BIND|GRAFANA_PORT|METRICS_TOKEN)=' backend/.env || true
