@@ -19,7 +19,26 @@ GitHub Desktop mostra **"Publicar repositório"**; `git push` responde **"No con
 
 ## Causa
 
-Os ficheiros `.git/config` ficam **vazios (0 bytes)** — perdem-se `origin` e o upstream da branch. Suspeitos principais: **GitHub Desktop** (Flatpak) a regravar config inválido; Git a correr como **root** (sandbox/Cursor); concorrência entre ferramentas; disco em `/run/media/luis/nv3`. O utilizador está a testar **sem GitHub Desktop**.
+Os ficheiros `.git/config` ficam **vazios (0 bytes)** — perdem-se `origin` e o upstream da branch.
+
+**Evidência (ago/2026):** após operações no terminal do Cursor, `.git/config` fica com **dono `root`** e tamanho 0 nos **3 repos ao mesmo tempo** — mesmo **sem GitHub Desktop**. Isto aponta para o **sandbox/agent do Cursor** (ou Git a correr como root) a truncar o ficheiro, não para “repo sem remote”.
+
+Relatos semelhantes na comunidade:
+- [Cursor: agent corrompe metadados `.git`](https://forum.cursor.com/t/agent-modifies-git-internal-files-outside-workspace-corrupting-worktree-references/155163) (worktrees, gitdir)
+- [Claude Code: FUSE trunca `.git/config`](https://github.com/anthropics/claude-code/issues/62932) (NUL-padded / 0 bytes)
+- [EGit: `.git/config` truncado a 0 bytes](https://www.eclipse.org/lists/egit-dev/msg02322.html) (Windows, causa desconhecida)
+- Causas clássicas: sync na cloud (OneDrive/Dropbox), queda de energia a meio de write, bind mounts / `/run/media` sob carga
+
+Outros suspeitos secundários: GitHub Desktop (Flatpak); concorrência entre ferramentas.
+
+## Prevenção
+
+```bash
+./scripts/restore-git-remotes.sh      # restaura + grava .git/config.taskhive-backup
+./scripts/install-git-hooks.sh        # pre-push restaura do backup se config = 0 bytes
+```
+
+No Cursor: preferir **Local** (não Worktree) no dropdown do agente; evitar agente a correr `git` que reescreva config. Se `.git/config` for `root`, corrigir dono: `sudo chown "$USER:$USER" .git/config .git/config.taskhive-backup`.
 
 ## Diagnóstico rápido
 
