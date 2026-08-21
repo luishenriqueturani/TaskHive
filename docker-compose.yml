@@ -135,10 +135,12 @@ services:
     <<: [*node-security, *node-limits]
     env_file: ./backend/.env
     ports:
-      - '${GRAFANA_BIND:-127.0.0.1}:${GRAFANA_PORT:-3002}:3000'
+      # Default 0.0.0.0 — UI só leitura na LAN; use GRAFANA_BIND=127.0.0.1 + túnel SSH se preferires.
+      - '${GRAFANA_BIND:-0.0.0.0}:${GRAFANA_PORT:-3002}:3000'
     environment:
       GF_USERS_ALLOW_SIGN_UP: 'false'
-      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_PORT:-3002}
+      # Adapta-se ao host:porta usados no browser (IP ou orangepi.local).
+      GF_SERVER_ROOT_URL: '%(protocol)s://%(domain)s:%(http_port)s/'
     entrypoint:
       - /bin/sh
       - -ec

@@ -74,7 +74,7 @@ Portas no host (em `backend/.env`, após o link):
 | `HTTP_PORT` | `8080` | Entrada Nginx (LAN) |
 | `POSTGRES_BIND` | `127.0.0.1` | Interface do host para Postgres (`0.0.0.0` = LAN) |
 | `POSTGRES_PUBLISH_PORT` | `5432` | Porta Postgres no host |
-| `GRAFANA_BIND` | `127.0.0.1` | Interface do host para Grafana |
+| `GRAFANA_BIND` | `0.0.0.0` | Interface do host para Grafana (`127.0.0.1` = só localhost) |
 | `GRAFANA_PORT` | `3002` | UI Grafana |
 | `GRAFANA_ADMIN_USER` | `admin` | Login Grafana |
 | `GRAFANA_ADMIN_PASSWORD` | *(obrigatório)* | Password Grafana |
