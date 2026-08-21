@@ -13,13 +13,13 @@ O utilizador pede commits ao agente (mensagens descritivas). Ao operar Git aqui,
 | `backend/` | `https://github.com/luishenriqueturani/task-hive.git` | `master` |
 | `FrontEnd/` | `https://github.com/luishenriqueturani/task-hive-front.git` | `main` |
 
-## Sintoma conhecido (ago/2026, repetiu ~2 dias depois)
+## Sintoma conhecido (ago/2026 — repetiu várias vezes no mesmo dia)
 
-GitHub Desktop mostra **"Publicar repositório"** em vez de **Push**.
+GitHub Desktop mostra **"Publicar repositório"**; `git push` responde **"No configured push destination"**. Os **3 repos** corrompem ao mesmo tempo.
 
 ## Causa
 
-Os ficheiros `.git/config` ficam **vazios (0 bytes)** — perdem-se `origin` e o upstream da branch. Não é o Desktop a apagar remotes em operação normal; é corrupção local. Suspeitos: Git a correr como **root** (sandbox/Cursor), concorrência com GitHub Desktop, disco em `/run/media/luis/nv3`.
+Os ficheiros `.git/config` ficam **vazios (0 bytes)** — perdem-se `origin` e o upstream da branch. Suspeitos principais: **GitHub Desktop** (Flatpak) a regravar config inválido; Git a correr como **root** (sandbox/Cursor); concorrência entre ferramentas; disco em `/run/media/luis/nv3`. O utilizador está a testar **sem GitHub Desktop**.
 
 ## Diagnóstico rápido
 
@@ -30,16 +30,20 @@ git branch -vv                   # sem [origin/...] = sem tracking
 ls -la .git/config               # dono root é sinal de alerta
 ```
 
-## Restaurar (fechar GitHub Desktop se a restauração não persistir)
+## Restaurar (fechar GitHub Desktop antes, se estiver aberto)
 
 ```bash
-# Exemplo — raiz; repetir em backend/ e FrontEnd/ com URL e branch corretos
-git remote add origin https://github.com/luishenriqueturani/TaskHive.git
-git branch --set-upstream-to=origin/master master
-sudo chown luis:luis .git/config
+./scripts/restore-git-remotes.sh
 ```
 
-Esperado: `git status -sb` → `## master...origin/master [ahead N]`.
+Ou manualmente (exemplo raiz):
+
+```bash
+git remote add origin https://github.com/luishenriqueturani/TaskHive.git
+git branch --set-upstream-to=origin/master master
+```
+
+Esperado: `git status -sb` → `## master...origin/master [ahead N]`. Confirmar persistência: `wc -c .git/config` (> 0).
 
 ## Regras para o agente
 
