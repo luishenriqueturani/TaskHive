@@ -83,7 +83,7 @@ Confirmar o que o Compose vai publicar: `docker compose config | grep published`
 
 O Prometheus **não** publica porta no host; faz scrape de `http://api:3001/metrics` só na rede Docker. O endpoint `/metrics` **não** é exposto pelo Nginx.
 
-O serviço `web` já define `BACKEND_API_BASE_URL=http://api:3001`, `SESSION_COOKIE_SECURE=false` e `ENABLE_HSTS=false` (HTTP doméstico). O Socket.IO usa o mesmo host da página (derivado do `Host`); podes forçar com `PUBLIC_WS_URL` no serviço `web` se precisares.
+O serviço `web` já define `BACKEND_API_BASE_URL=http://api:3001`, `SESSION_COOKIE_SECURE=false`, `ENABLE_HSTS=false` e `PUBLIC_WS_URL` (default `http://127.0.0.1:8080`). Na LAN, define `PUBLIC_WS_URL=http://<teu-ip>:8080` no `.env` da raiz antes do `docker compose up`.
 
 ### 3. Seed do admin
 

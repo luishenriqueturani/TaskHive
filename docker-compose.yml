@@ -78,6 +78,8 @@ services:
       BACKEND_API_BASE_URL: http://api:3001
       SESSION_COOKIE_SECURE: 'false'
       ENABLE_HSTS: 'false'
+      # URL pública do Socket.IO (browser). Definir no .env da raiz, ex.: http://192.168.1.18:8080
+      PUBLIC_WS_URL: ${PUBLIC_WS_URL:-http://127.0.0.1:8080}
     depends_on:
       - api
     expose:
