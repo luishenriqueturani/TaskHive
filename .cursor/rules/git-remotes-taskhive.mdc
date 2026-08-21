@@ -1,0 +1,48 @@
+---
+description: Git remotes do TaskHive — corrupção de .git/config e como restaurar
+alwaysApply: true
+---
+
+# Git — TaskHive (3 repos)
+
+O utilizador pede commits ao agente (mensagens descritivas). Ao operar Git aqui, respeitar estes três repositórios independentes:
+
+| Pasta | Remote | Branch |
+|-------|--------|--------|
+| raiz | `https://github.com/luishenriqueturani/TaskHive.git` | `master` |
+| `backend/` | `https://github.com/luishenriqueturani/task-hive.git` | `master` |
+| `FrontEnd/` | `https://github.com/luishenriqueturani/task-hive-front.git` | `main` |
+
+## Sintoma conhecido (ago/2026, repetiu ~2 dias depois)
+
+GitHub Desktop mostra **"Publicar repositório"** em vez de **Push**.
+
+## Causa
+
+Os ficheiros `.git/config` ficam **vazios (0 bytes)** — perdem-se `origin` e o upstream da branch. Não é o Desktop a apagar remotes em operação normal; é corrupção local. Suspeitos: Git a correr como **root** (sandbox/Cursor), concorrência com GitHub Desktop, disco em `/run/media/luis/nv3`.
+
+## Diagnóstico rápido
+
+```bash
+git remote -v                    # vazio = sem origin
+wc -c .git/config                # 0 = config corrompido
+git branch -vv                   # sem [origin/...] = sem tracking
+ls -la .git/config               # dono root é sinal de alerta
+```
+
+## Restaurar (fechar GitHub Desktop se a restauração não persistir)
+
+```bash
+# Exemplo — raiz; repetir em backend/ e FrontEnd/ com URL e branch corretos
+git remote add origin https://github.com/luishenriqueturani/TaskHive.git
+git branch --set-upstream-to=origin/master master
+sudo chown luis:luis .git/config
+```
+
+Esperado: `git status -sb` → `## master...origin/master [ahead N]`.
+
+## Regras para o agente
+
+- **Nunca** alterar `.git/config` sem necessidade; preferir `git commit`/`git add` apenas quando o utilizador pedir commit.
+- **Nunca** sugerir "Publicar repositório" — os repos já existem no GitHub.
+- Se o sintoma voltar, restaurar os três configs antes de push; verificar `wc -c .git/config` após restaurar.
