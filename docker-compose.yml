@@ -114,14 +114,12 @@ services:
     container_name: task-hive-prometheus
     restart: unless-stopped
     <<: [*node-security, *node-limits]
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--config.expand-env'
-      - '--storage.tsdb.path=/prometheus'
+    entrypoint: [/docker/prometheus/entrypoint.sh]
     environment:
       METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
-      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/entrypoint.sh:/docker/prometheus/entrypoint.sh:ro
+      - ./docker/prometheus/prometheus.yml.template:/etc/prometheus/prometheus.yml.template:ro
       - task_hive_prometheus:/prometheus
     expose:
       - '9090'
