@@ -82,6 +82,8 @@ services:
       CSRF_ALLOWED_ORIGINS: ${CSRF_ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://localhost:3000}
       # URL pública do Socket.IO (browser). Definir no .env da raiz, ex.: http://192.168.1.18:8080
       PUBLIC_WS_URL: ${PUBLIC_WS_URL:-http://127.0.0.1:8080}
+      # URL pública da UI (redirects de sessão). Ex.: http://192.168.1.34:8080 ou http://orangepi.local:8080
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-}
     depends_on:
       - api
     expose:

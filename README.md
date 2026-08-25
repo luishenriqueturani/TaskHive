@@ -84,7 +84,13 @@ Confirmar o que o Compose vai publicar: `docker compose config | grep published`
 
 O Prometheus **não** publica porta no host; faz scrape de `http://api:3001/metrics` só na rede Docker. O endpoint `/metrics` **não** é exposto pelo Nginx. **`METRICS_TOKEN` tem de estar definido em `backend/.env`** — sem ele a API responde 404 em produção e o Grafana fica sem dados.
 
-O serviço `web` já define `BACKEND_API_BASE_URL=http://api:3001`, `SESSION_COOKIE_SECURE=false`, `ENABLE_HSTS=false` e `PUBLIC_WS_URL` (default `http://127.0.0.1:8080`). Na LAN, define `PUBLIC_WS_URL=http://<teu-ip>:8080` no `.env` da raiz antes do `docker compose up`.
+O serviço `web` já define `BACKEND_API_BASE_URL=http://api:3001`, `SESSION_COOKIE_SECURE=false`, `ENABLE_HSTS=false` e `PUBLIC_WS_URL` (default `http://127.0.0.1:8080`). Na LAN, define no `.env` (via `backend/.env` + link):
+
+- `PUBLIC_APP_URL=http://<IP-ou-host>:8080` — redirects de sessão (evita `0.0.0.0:3000/login`)
+- `PUBLIC_WS_URL=http://<IP-ou-host>:8080` — Socket.IO
+- `CSRF_ALLOWED_ORIGINS=http://<IP-ou-host>:8080` — fallback se faltar `PUBLIC_APP_URL`
+
+Depois: `docker compose up -d web`.
 
 ### 3. Seed do admin
 
