@@ -33,7 +33,7 @@ Ex.: Swagger `POST /projects` → cliente `POST /api/bff/projects`.
 
 Só estes prefixos passam pelo proxy (outros devolvem **403**):
 
-`projects`, `project-stages`, `tasks`, `subtasks`, `to-do`, `users`, `companies`, `personal-access-tokens`
+`projects`, `project-stages`, `tasks`, `subtasks`, `to-do`, `users`, `companies`, `personal-access-tokens`, `invites`, `plans`, `admin`, `support`
 
 Rotas de auth têm handlers dedicados em `/api/auth/*` (não use `/api/bff/auth/login`).
 
@@ -180,15 +180,42 @@ Autenticação em **todas** as chamadas: `Authorization: Bearer th_pat_…` **ou
 
 | Método | Path | Body |
 |---|---|---|
-| `GET` | `/api/bff/projects` | — |
+| `GET` | `/api/bff/projects?scope=` | `owned` \| `invited` \| `all` (omisso = `all`) |
 | `POST` | `/api/bff/projects` | `{ "name": "...", "description": "..." }` |
 | `PATCH` | `/api/bff/projects/:id` | parcial |
 | `DELETE` | `/api/bff/projects/:id` | — |
 | `GET` | `/api/bff/projects/:id/participants` | — |
 | `POST` | `/api/bff/projects/:id/participants` | `{ "userId": "<uuid>" }` |
 | `DELETE` | `/api/bff/projects/:id/participants/:userId` | — |
+| `GET` | `/api/bff/projects/:id/invites` | convites PENDING + `guestUsage` |
+| `POST` | `/api/bff/projects/:id/invites` | `{ "email": "maria@empresa.com" }` |
+| `DELETE` | `/api/bff/projects/:id/invites/:inviteId` | revogar convite |
 
 `name` é obrigatório. Só vê/edita projectos em que participa (IDOR corrigido).
+
+`POST /projects` pode devolver **402** `PLAN_LIMIT_PROJECTS`. Convidar participante ou e-mail pode devolver **402** `PLAN_LIMIT_GUESTS`.
+
+### Convites (token público)
+
+| Método | Path | Auth |
+|---|---|---|
+| `GET` | `/api/bff/invites/:token` | público (pré-visualizar e-mail + projecto) |
+| `POST` | `/api/bff/invites/:token/accept` | sessão; o e-mail tem de coincidir |
+
+UI pública: `/invite/:token`.
+
+### Quotas do plano (HTTP 402)
+
+Quando uma quota é atingida, o corpo inclui `code`, `message`, `limit` (`-1` = ilimitado) e `used`:
+
+| `code` | Onde |
+|---|---|
+| `PLAN_LIMIT_PROJECTS` | `POST /projects` |
+| `PLAN_LIMIT_API_KEYS` | `POST /personal-access-tokens` |
+| `PLAN_LIMIT_TODOS` | `POST /to-do` |
+| `PLAN_LIMIT_GUESTS` | `POST /projects/:id/participants` e `POST /projects/:id/invites` |
+
+Contas **CNPJ** (`accountKind=COMPANY`) não têm tarefas avulsas: `POST /to-do` → **403**; a UI redirecciona `/to-do` para `/dashboard`.
 
 ### Utilizadores
 
@@ -244,15 +271,53 @@ IDs de projecto/coluna/tarefa são **bigint em string** (ex.: `"7398969410680299
 | Path | Uso |
 |---|---|
 | `/api/bff/subtasks/...` | subtarefas de uma task |
-| `/api/bff/to-do/...` | tarefas avulsas (fora do quadro do projecto) |
-| `/api/bff/tasks/:id/timetrack` | timer da tarefa (WebSocket separado) |
+| `/api/bff/to-do/...` | tarefas avulsas PF (fora do quadro); CNPJ → 403 |
+| `/api/bff/tasks/:id/timetrack` | timer da tarefa (WebSocket namespace default) |
+
+### Planos (catálogo)
+
+| Método | Path | Auth |
+|---|---|---|
+| `GET` | `/api/bff/plans` | público — planos comerciais activos (exclui trial) |
+
+### Admin (só `ADMIN_GOD` / `ADMIN_COLLABORATOR`)
+
+`CLIENT` autenticado na UI recebe **404** em `/admin` (não revelar a área). Na API, rotas `/admin/*` devolvem **403**.
+
+| Método | Path | Notas |
+|---|---|---|
+| `GET` | `/api/bff/admin/stats` | users, companies, openTickets |
+| `GET` | `/api/bff/admin/users` | paginado (`q`, `accountKind`, `planSlug`, `role`) |
+| `GET` | `/api/bff/admin/users/:id` | detalhe + usage + projectos |
+| `GET` | `/api/bff/admin/companies` | paginado |
+| `GET` | `/api/bff/admin/companies/:id` | owner, projectos, plano |
+| `GET` / `PATCH` | `/api/bff/admin/plans` | quotas e benefícios |
+| `GET` / `POST` / `PATCH` / `DELETE` | `/api/bff/admin/coupons` | cupons e redemptions |
+| `POST` | `/api/bff/admin/subscriptions` | `{ userId\|companyId, planId, couponCode? }` |
+
+Não usar `GET /users` / `GET /companies` sem paginação no painel — usar `/admin/users` e `/admin/companies`.
+
+### Suporte
+
+Persistir **sempre por HTTP**; o Socket.IO só notifica (`namespace /support`, `joinTicket`, evento `support:message`).
+
+| Método | Path | Notas |
+|---|---|---|
+| `GET` | `/api/bff/support/tickets` | cliente: os seus; admin: fila (`?status=&q=`) |
+| `POST` | `/api/bff/support/tickets` | `{ "subject", "body"? }` |
+| `GET` | `/api/bff/support/tickets/:id` | autor ou admin |
+| `PATCH` | `/api/bff/support/tickets/:id` | `{ "status"?, "assignToMe"? }` — assumir só admin |
+| `GET` | `/api/bff/support/tickets/:id/messages` | — |
+| `POST` | `/api/bff/support/tickets/:id/messages` | `{ "body" }` (rate limit ~30/min) |
+
+Estados: `OPEN`, `PENDING_USER`, `PENDING_ADMIN`, `CLOSED`. Fechar: autor ou admin; reabrir: só o autor.
 
 ### Tokens de API
 
 | Método | Path | Auth |
 |---|---|---|
 | `GET` | `/api/bff/personal-access-tokens` | sessão ou PAT |
-| `POST` | `/api/bff/personal-access-tokens` | **só sessão** (criar PAT) |
+| `POST` | `/api/bff/personal-access-tokens` | **só sessão** (criar PAT); **402** `PLAN_LIMIT_API_KEYS` se a quota esgotar |
 | `DELETE` | `/api/bff/personal-access-tokens/:id` | sessão ou PAT (revogar o próprio) |
 
 ---
@@ -355,6 +420,9 @@ curl -sS -b cookies.txt -X POST "$TASK_HIVE_BASE_URL/api/bff/projects" \
 11. **429** — rate limit em login/registo/forget-password; aguarde e repita.
 12. **Respostas nunca incluem `password`** — se aparecer, reporte como bug de segurança.
 13. **Compose na LAN** — defina no `.env` da raiz: `PUBLIC_WS_URL=http://<IP>:8080` e, se usar login browser com CSRF, `CSRF_ALLOWED_ORIGINS=http://<IP>:8080`.
+14. **402 quota** — não é erro de pagamento; o plano atingiu o tecto (`code` `PLAN_LIMIT_*`). `limit: -1` = ilimitado.
+15. **To-do só PF** — contas empresa não devem chamar `/to-do`.
+16. **Admin** — `CLIENT` não deve descobrir `/admin` na UI (404); na API é 403.
 
 ---
 
@@ -363,7 +431,9 @@ curl -sS -b cookies.txt -X POST "$TASK_HIVE_BASE_URL/api/bff/projects" \
 - UI: `http://<host>:8080/swagger` (HTTP Basic: variáveis `SWAGGER_USER` / `SWAGGER_PASSWORD`)
 - JSON: `http://<host>:8080/api-json`
 
-Contratos úteis: `CreateProjectDto`, `CreateProjectStageDto`, `CreateTaskDto`, `UpdateTaskDto`, `CreatePersonalAccessTokenDto`.
+Contratos úteis: `CreateProjectDto`, `CreateProjectStageDto`, `CreateTaskDto`, `UpdateTaskDto`, `CreatePersonalAccessTokenDto`, `CreateProjectInviteDto`, `PlanLimitErrorDto`, `CreateSupportTicketDto`.
+
+O JSON na raiz do front (`FrontEnd/openapi/openapi.json`) e `backend/openapi/openapi.json` devem coincidir após `npm run openapi:generate` + `npm run api:generate`.
 
 No cliente externo, prefixar paths com `/api/bff/`.
 
@@ -371,13 +441,15 @@ No cliente externo, prefixar paths com `/api/bff/`.
 
 ## Caso fipe-api (já criado)
 
+Consulta em produção (`GET /api/bff/…`, 20 nov 2026):
+
 | Campo | Valor |
 |---|---|
 | Projecto | `fipe-api` |
 | ID | `739896941068029952` |
 | UI | http://orangepi.local:8080/projects |
-| Colunas | A Fazer → Em Progresso → Concluído |
-| Tarefas | 34 (histórico Git), todas em Concluído e marcadas concluídas |
+| Colunas | A Fazer (`739896941990776832`) → Em Progresso (`739896942317932544`) → Concluído (`739896942624116736`) |
+| Tarefas | **34**, todas em **Concluído** e marcadas concluídas |
 
 Fonte das tarefas locais: `TASKS.md` (no repositório fipe-api).
 
@@ -385,13 +457,15 @@ Fonte das tarefas locais: `TASKS.md` (no repositório fipe-api).
 
 ## Caso Proposify (já criado)
 
+Consulta em produção (`GET /api/bff/…`, 20 nov 2026):
+
 | Campo | Valor |
 |---|---|
 | Projecto | `Proposify` |
 | ID | `739909504547819520` |
 | UI | http://orangepi.local:8080/projects |
 | Colunas | A Fazer (`739909505025970176`) → Em Progresso (`739909505336348672`) → Concluído (`739909505617367040`) |
-| Tarefas | 34 (MVP do PLANEJAMENTO.md), todas em **A Fazer** |
+| Tarefas | **61** no total: 1 em **A Fazer** (`Polish UI + README de setup`); 60 em **Concluído** (45 com `completedAt`; 15 testes frontend só movidos de coluna) |
 
 Fonte das tarefas locais: [`TASKS.md`](./TASKS.md).
 
@@ -399,12 +473,30 @@ Fonte das tarefas locais: [`TASKS.md`](./TASKS.md).
 
 ## Caso trackr (já criado)
 
+Consulta em produção (`GET /api/bff/…`, 20 nov 2026):
+
 | Campo | Valor |
 |---|---|
 | Projecto | `trackr` |
 | ID | `740267155987238912` |
 | UI | http://orangepi.local:8080/projects |
 | Colunas | A Fazer (`740267156285034496`) → Futuro (`740267924119490560`) → Em Progresso (`740267156570247168`) → Concluído (`740267156838682624`) |
-| Tarefas | MVP em **A Fazer** / **Concluído**; pós-MVP na coluna **Futuro** (~24: Fase 17 tenant + backlog de `docs/TODO.md` § Futuro) |
+| Tarefas | **224** no total: 8 em **A Fazer** (Fase 10/16 + 2 pendências de produto); 25 em **Futuro**; 191 em **Concluído** (todas marcadas) |
 
 Fonte das tarefas locais: [`docs/TODO.md`](./docs/TODO.md).
+
+---
+
+## Caso MedLyra (já criado)
+
+Consulta em produção (`GET /api/bff/…`, 20 nov 2026):
+
+| Campo | Valor |
+|---|---|
+| Projecto | `MedLyra` |
+| ID | `747861181322104832` |
+| UI | http://orangepi.local:8080/projects |
+| Colunas | A Fazer (`747861182509092864`) → Em Progresso (`747861182873997312`) → Concluído (`747861183222124544`); Futuro (`747861183595417600`) à parte |
+| Tarefas | **131** no total: 10 em **A Fazer** (F7-01–F7-10); 113 em **Concluído** (marcadas); 8 em **Futuro** |
+
+Fonte das tarefas locais: [`docs/07-backlog.md`](./docs/07-backlog.md) no repositório MedLyra.
