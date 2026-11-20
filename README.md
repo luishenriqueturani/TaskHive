@@ -67,6 +67,8 @@ O Docker Compose **só** interpola `${POSTGRES_PUBLISH_PORT}`, `${HTTP_PORT}` e 
 docker compose up -d --build
 ```
 
+Os serviços na rede Docker `taskhive` têm **IP fixo** (`api` 172.20.0.20, `web` 172.20.0.30, `nginx` 172.20.0.40). O Nginx resolve os nomes só ao arrancar; sem isto, um rebuild do `web` muda o endereço e o proxy na :8080 responde **502**.
+
 Portas no host (em `backend/.env`, após o link):
 
 | Variável | Default | Uso |

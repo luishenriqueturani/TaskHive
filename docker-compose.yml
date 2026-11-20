@@ -12,6 +12,9 @@ x-node-limits: &node-limits
 # Task Hive — stack completa em casa (Postgres + API + Next + Nginx).
 # Acesso na LAN por IP: http://IP:${HTTP_PORT:-8080} (sem DNS).
 #
+# IPs fixos na rede `taskhive` (172.20.0.0/16): o Nginx resolve `web`/`api`
+# só no arranque; sem ipv4_address um rebuild muda o IP e o proxy dá 502.
+#
 # Pré-requisito: backend/.env + atalho na raiz para o Compose interpolar portas:
 #   ./scripts/link-compose-env.sh
 #   (cria `.env` → `backend/.env`; sem isto POSTGRES_PUBLISH_PORT/HTTP_PORT/GRAFANA_PORT
@@ -39,7 +42,8 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - taskhive
+      taskhive:
+        ipv4_address: 172.20.0.10
 
   api:
     build:
@@ -61,6 +65,7 @@ services:
       - '3001'
     networks:
       taskhive:
+        ipv4_address: 172.20.0.20
         aliases:
           - api
 
@@ -89,7 +94,8 @@ services:
     expose:
       - '3000'
     networks:
-      - taskhive
+      taskhive:
+        ipv4_address: 172.20.0.30
 
   nginx:
     image: nginx:alpine
@@ -109,7 +115,8 @@ services:
       - api
       - web
     networks:
-      - taskhive
+      taskhive:
+        ipv4_address: 172.20.0.40
 
   prometheus:
     image: prom/prometheus:v2.55.1
@@ -127,7 +134,8 @@ services:
     depends_on:
       - api
     networks:
-      - taskhive
+      taskhive:
+        ipv4_address: 172.20.0.50
 
   grafana:
     image: grafana/grafana:11.3.0
@@ -160,11 +168,16 @@ services:
     depends_on:
       - prometheus
     networks:
-      - taskhive
+      taskhive:
+        ipv4_address: 172.20.0.60
 
 networks:
   taskhive:
     name: taskhive
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
 
 volumes:
   task_hive_pg:
