@@ -1,0 +1,12 @@
+# Fragmento do Prometheus partilhado. No servidor, gravar como taskhive.yml
+# com o token já preenchido. Esse ficheiro não entra no git.
+  - job_name: taskhive-api
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials: ${METRICS_TOKEN}
+    static_configs:
+      - targets:
+          - task-hive-api:3001
+        labels:
+          service: taskhive-api

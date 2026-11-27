@@ -1,3 +1,4 @@
+# Job histórico. No Pi o fragmento activo é taskhive.scrape.yml.template.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -10,6 +11,6 @@ scrape_configs:
       credentials: ${METRICS_TOKEN}
     static_configs:
       - targets:
-          - api:3001
+          - task-hive-api:3001
         labels:
           service: taskhive-api

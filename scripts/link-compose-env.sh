@@ -12,5 +12,5 @@ fi
 
 ln -sfn backend/.env .env
 echo "OK: .env → backend/.env"
-echo "Portas no host (edita em backend/.env):"
-grep -E '^(POSTGRES_PUBLISH_PORT|HTTP_PORT|GRAFANA_BIND|GRAFANA_PORT|METRICS_TOKEN)=' backend/.env || true
+echo "URLs públicas (edita em backend/.env):"
+grep -E '^(PUBLIC_APP_URL|PUBLIC_WS_URL|CSRF_ALLOWED_ORIGINS|METRICS_TOKEN)=' backend/.env || true

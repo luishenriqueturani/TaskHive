@@ -26,73 +26,61 @@ O repositório é um **monorepo informal** com dois projetos Git independentes:
 
 ---
 
-## Docker em casa (stack completa)
+## Docker em casa (Orange Pi)
 
-Postgres + API Nest + Next.js + Nginx numa única entrada HTTP na LAN — **sem DNS**.
+A app (API + Next) sobe com o compose desta raiz. Postgres, Nginx, Prometheus e Grafana são serviços partilhados em `/root/infra` no Pi, para outros projetos usarem o mesmo cluster, o mesmo proxy e o mesmo Grafana. Neste ambiente de testes não há DNS: o TaskHive entra pela porta **8080**.
 
 ```
-http://IP:8080  →  Nginx
+http://IP:8080  →  Nginx partilhado
                  ├─ /              → Next (UI + /api/bff + auth)
                  ├─ /socket.io/    → Nest (timetrack)
                  └─ /swagger       → Nest Swagger (Basic Auth do .env)
 
-http://IP:3002  →  Grafana (métricas da API; Prometheus só na rede Docker)
+http://IP:3002  →  Grafana partilhado
+IP:5433         →  Postgres (clientes na LAN). A API usa shared-postgres:5432 na rede Docker.
 ```
 
-As rotas de página do Next (`/projects`, `/to-do`, etc.) **não** devem ir para a API Nest — o browser usa o BFF (`/api/bff/...`), que fala com `http://api:3001` na rede Docker.
+As rotas de página do Next (`/projects`, `/to-do`, etc.) **não** devem ir para a API Nest — o browser usa o BFF (`/api/bff/...`), que fala com `http://task-hive-api:3001` na rede Docker.
 
-Ficheiros: [`docker-compose.yml`](docker-compose.yml), [`docker/nginx.conf`](docker/nginx.conf), [`backend/Dockerfile`](backend/Dockerfile), [`FrontEnd/Dockerfile`](FrontEnd/Dockerfile).
+Ficheiros da app: [`docker-compose.yml`](docker-compose.yml), [`docker/nginx.conf`](docker/nginx.conf) (vhost copiado para o Nginx partilhado), [`backend/Dockerfile`](backend/Dockerfile), [`FrontEnd/Dockerfile`](FrontEnd/Dockerfile).
 
-Não corras em paralelo com `backend/docker-compose.yml` (mesmos contentores / volume `task_hive_pg`).
+O volume `task_hive_pg` pertence ao Postgres em `/root/infra/postgres` e está marcado `external`. Não uses `docker compose down -v` nessa pasta.
 
 ### 1. Configurar o backend
 
 ```bash
 cd backend
 cp .env.example .env
-# Preenche secrets e, se outra app já usa 5432/8080, altera as portas do *host*:
-#   POSTGRES_PUBLISH_PORT  (ex. 5468)
-#   HTTP_PORT              (ex. 8081)
-#   GRAFANA_PORT           (ex. 3003)
-# Alinha DB_NAME com POSTGRES_DB
+# Preenche secrets. DB_NAME alinhado com a base task_hive.
+# No contentor, o compose força DB_HOST=shared-postgres e DB_PORT=5432.
+# A partir do portátil: DB_HOST=<IP-do-Pi> e DB_PORT=5433.
 cd ..
-./scripts/link-compose-env.sh   # cria .env → backend/.env (obrigatório para as portas)
+./scripts/link-compose-env.sh   # cria .env → backend/.env (PUBLIC_* e CSRF_*)
 ```
 
-O Docker Compose **só** interpola `${POSTGRES_PUBLISH_PORT}`, `${HTTP_PORT}` e `${GRAFANA_PORT}` a partir do ficheiro `.env` na **raiz**. O script acima liga esse ficheiro a `backend/.env`, para editares tudo num sítio só.
-
-### 2. Subir a stack (na raiz do monorepo)
+### 2. Subir a app (na raiz do monorepo, com a infra já a correr)
 
 ```bash
 docker compose up -d --build
 ```
 
-Os serviços na rede Docker `taskhive` têm **IP fixo** (`api` 172.20.0.20, `web` 172.20.0.30, `nginx` 172.20.0.40). O Nginx resolve os nomes só ao arrancar; sem isto, um rebuild do `web` muda o endereço e o proxy na :8080 responde **502**.
+O Nginx partilhado resolve `task-hive-api` e `task-hive-web` em cada pedido (DNS do Docker). Um rebuild deixa de exigir restart do Nginx por causa de IP novo.
 
-Portas no host (em `backend/.env`, após o link):
+| Onde | Porta | Uso |
+|------|-------|-----|
+| Nginx partilhado | `8080` | Entrada HTTP do TaskHive |
+| Postgres partilhado | `5433` | Clientes na LAN (psql, DBeaver) |
+| Grafana partilhado | `3002` | UI de métricas |
 
-| Variável | Default | Uso |
-|----------|---------|-----|
-| `HTTP_PORT` | `8080` | Entrada Nginx (LAN) |
-| `POSTGRES_BIND` | `127.0.0.1` | Interface do host para Postgres (`0.0.0.0` = LAN) |
-| `POSTGRES_PUBLISH_PORT` | `5432` | Porta Postgres no host |
-| `GRAFANA_BIND` | `0.0.0.0` | Interface do host para Grafana (`127.0.0.1` = só localhost) |
-| `GRAFANA_PORT` | `3002` | UI Grafana |
-| `GRAFANA_ADMIN_USER` | `admin` | Login Grafana |
-| `GRAFANA_ADMIN_PASSWORD` | *(obrigatório)* | Password Grafana |
-| `METRICS_TOKEN` | *(obrigatório em prod.)* | Bearer para `GET /metrics` (Prometheus + API) |
+**`METRICS_TOKEN` tem de estar definido em `backend/.env`.** O fragmento `docker/prometheus/taskhive.scrape.yml.template` é gravado no servidor em `/root/infra/observability/scrape.d/taskhive.yml` (token já substituído, fora do git). Sem token a API responde 404 em `/metrics` e o Grafana fica sem dados. `/metrics` não é exposto pelo Nginx.
 
-Confirmar o que o Compose vai publicar: `docker compose config | grep published`.
-
-O Prometheus **não** publica porta no host; faz scrape de `http://api:3001/metrics` só na rede Docker. O endpoint `/metrics` **não** é exposto pelo Nginx. **`METRICS_TOKEN` tem de estar definido em `backend/.env`** — sem ele a API responde 404 em produção e o Grafana fica sem dados.
-
-O serviço `web` já define `BACKEND_API_BASE_URL=http://api:3001`, `SESSION_COOKIE_SECURE=false`, `ENABLE_HSTS=false` e `PUBLIC_WS_URL` (default `http://127.0.0.1:8080`). Na LAN, define no `.env` (via `backend/.env` + link):
+O serviço `web` define `BACKEND_API_BASE_URL=http://task-hive-api:3001`, `SESSION_COOKIE_SECURE=false` e `ENABLE_HSTS=false`. Na LAN, define no `.env` (via `backend/.env` + link):
 
 - `PUBLIC_APP_URL=http://<IP-ou-host>:8080` — redirects de sessão (evita `0.0.0.0:3000/login`)
 - `PUBLIC_WS_URL=http://<IP-ou-host>:8080` — Socket.IO
 - `CSRF_ALLOWED_ORIGINS=http://<IP-ou-host>:8080` — fallback se faltar `PUBLIC_APP_URL`
 
-Depois: `docker compose up -d web`.
+Depois de mudar o vhost, copia `docker/nginx.conf` para `/root/infra/nginx/conf.d/taskhive.conf` e recarrega o Nginx. Depois de mudar só o `web`: `docker compose up -d web`.
 
 ### 3. Seed do admin
 
